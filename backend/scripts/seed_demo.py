@@ -5,10 +5,8 @@ from sqlalchemy import select,func
 from src.config.database import Base,engine,SessionLocal
 from src.models import *
 from src.utils.security import hash_password
-from src.utils.serialize import row
 from src.constants.species import SPECIES
 from src.services.transects import list_transects
-from src.services.analysis import analyze
 
 def seed():
  Base.metadata.create_all(engine)
@@ -29,6 +27,15 @@ def seed():
      t=Transect(survey_id=survey.id,reference=reference,name=['林缘','溪边','草地'][i%3]+f'样线{i+1:02d}',habitat=['阔叶林缘','溪边灌丛','草地边界'][i%3]);db.add(t);db.flush();db.add_all([SpeciesCount(transect_id=t.id,species=s,count=int(c)) for s,c in zip(SPECIES,counts)])
    db.commit()
   if not db.scalar(select(DiversityRun).where(DiversityRun.name=='秋季共同努力量研究')):
-   survey=db.scalar(select(Survey).where(Survey.name=='秋季样线调查'));data=list_transects(db,survey.id);admin=db.scalar(select(User).where(User.role=='admin'));config={'transect_ids':[t['id'] for t in data],'m':100,'bootstrap':200,'seed':20261114};result=analyze(row(survey),data,config);run=DiversityRun(survey_id=survey.id,name='秋季共同努力量研究',config=config,result=result,status='succeeded',creator_id=admin.id);db.add(run);db.flush();db.add(ConservationNote(run_id=run.id,name='林缘稀有种复查草案',transect_ids=[t['id'] for t in result['transects'] if t['status']=='eligible'][:2],observation='相同m=100下比较期望物种数；原N的Shannon/Simpson仅描述，不按原始物种数排优。',suggested_action='复查低计数物种和漏检可能，下一调查期保持样线协议。',creator_id=admin.id));db.add(AuditLog(actor='seed',action='demo.created',detail={'seed':149,'count_rows':1296}));db.commit()
+   survey=db.scalar(select(Survey).where(Survey.name=='秋季样线调查'));data=list_transects(db,survey.id);admin=db.scalar(select(User).where(User.role=='admin'))
+   from src.services.archive import accept_run
+   from src.schemas.run import DiversityInput
+   payload=DiversityInput(name='秋季共同努力量研究',survey_id=survey.id,transect_ids=[t['id'] for t in data],m=100,bootstrap=200,seed=20261114)
+   run,_=accept_run(db,payload,admin);db.commit()
+   # 同步执行一次worker流程：仅依赖受理归档，写结果文件并发布，与异步队列口径一致
+   from src.worker import analyze_run
+   analyze_run(run.id)
+   db.expire_all();run=db.get(DiversityRun,run.id);result=run.result
+   db.add(ConservationNote(run_id=run.id,name='林缘稀有种复查草案',transect_ids=[t['id'] for t in result['transects'] if t['status']=='eligible'][:2],observation='相同m=100下比较期望物种数；原N的Shannon/Simpson仅描述，不按原始物种数排优。',suggested_action='复查低计数物种和漏检可能，下一调查期保持样线协议。',creator_id=admin.id));db.add(AuditLog(actor='seed',action='demo.created',detail={'seed':149,'count_rows':1296}));db.commit()
   counts={t.__tablename__:db.scalar(select(func.count()).select_from(t)) for t in [User,Survey,Transect,SpeciesCount,DiversityRun,ConservationNote]};print(json.dumps(counts));return counts
 if __name__=='__main__':seed()

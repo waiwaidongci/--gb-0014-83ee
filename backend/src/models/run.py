@@ -11,5 +11,6 @@ class DiversityRun(Base):
  config:Mapped[dict]=mapped_column(JSON)
  result:Mapped[dict]=mapped_column(JSON,default=dict)
  error:Mapped[str|None]=mapped_column(String(1000),nullable=True)
+ input_fingerprint:Mapped[str|None]=mapped_column(String(64),nullable=True,unique=True)
  creator_id:Mapped[int]=mapped_column(ForeignKey('users.id'))
  created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))

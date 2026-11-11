@@ -48,7 +48,9 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 `services/bootstrap.py`：固定seed和调查期/样线键派生确定性子种子，重复B次 Multinomial(N,观测p)；每次用原N重采样组成计算H/D，并在该组成上再算同一m的稀释期望，分别报告2.5%/97.5%分位区间。默认B200，允许50–1000。它是**条件于已观测组成的重采样区间**，不能覆盖未发现物种、空间相关、物种漏检或完整田野抽样不确定性；未见物种概率仍为零，区间不是生态总体置信保证。原N指数区间与共同m期望区间分别标注，稀释期望曲线也不是bootstrap轨迹。
 
-输入指纹按样线reference稳定排序，包含调查期id/name/date/filename、样线id/期次/reference/name/habitat、全部24种计数（缺列规范为零）、共同m/重复数/seed/选择样线集合、算法版本；选择ID顺序和输入行序变化不改指纹，计数/元数据/seed改变会改。结果保存全部参数、原N/S、资格、期望曲线、三组条件区间、低计数1–2个体物种和指纹，worker写共享JSON并落库，可复算。
+研究**受理时**即建立不可变归档（`run_archives`）：冻结调查期id/name/date/filename、所选样线id/期次/reference/name/habitat与全部24种计数（缺列规范为零）、共同m/重复数/seed/选择样线集合与算法版本，并据此计算输入指纹（SHA-256，按样线reference稳定排序；选择ID顺序和输入行序变化不改指纹，计数/元数据/seed改变会改）。worker与任何重试只读取归档快照，不再回查源表；因此样线计数事后补正不会改变已受理研究的归档输入、结果指纹与已发布结果，补正后的相同载荷会作为新输入（新指纹、新研究）受理。`diversity_runs.input_fingerprint` 与归档指纹均带唯一约束：重复投递在受理时去重，返回既有研究（HTTP 200、`X-Deduplicated: true`）而不重复入队、不重复发布结果；并发重复提交由唯一约束兜底并回查既有研究。
+
+失败可经 `POST /runs/{id}/retry` 按**同一份归档**重新入队，重试结果与原指纹一致；成功研究重试为no-op。历史研究若没有受理归档（`input_fingerprint` 为空、无 `run_archives` 行），服务层与worker都明确拒绝复算（409），不回源表拼输入。结果保存全部参数、原N/S、资格、期望曲线、三组条件区间、低计数1–2个体物种和指纹；worker只依据归档计算，结果文件经“临时文件→fsync→回读校验→原子rename”写入共享JSON并落库：写入或提交后复核失败一律回退`failed`、删除结果文件与临时残留，保证结果文件存在当且仅当研究`succeeded`，不留下成功假象。
 
 失败态包括未知物种、负/非整数/非有限计数、重复物种、跨调查期、重复样线、共同m超非空最小N、所有样线为空、非法bootstrap和seed。观察差异不证明保护动作有因果效果，田野协议与漏检需要另行复核。
 
@@ -81,7 +83,7 @@ npm ci
 npm run dev
 ```
 
-目录：backend/src/{routes,controllers,services,models,schemas,middlewares,utils,constants,config}；backend/scripts/seed_demo.py；backend/migrations/；frontend/src/{api,stores,types,components/common,hooks,pages,router,utils,constants}。metadata首次建表，migrations记录结构，未配置生产增量迁移。seed按自然键插入，已有数据/用户修改不覆盖，基准运行仅缺失时计算。请求ID/全局错误两个中间件；AuditLog记录登录、录入、研究、建议复核；CSV对公式前缀转义。
+目录：backend/src/{routes,controllers,services,models,schemas,middlewares,utils,constants,config}；backend/scripts/seed_demo.py；backend/migrations/；frontend/src/{api,stores,types,components/common,hooks,pages,router,utils,constants}。metadata首次建表，migrations记录结构（`002_run_archive.sql`为受理归档与指纹的增量升级），未配置生产增量迁移。seed按自然键插入，已有数据/用户修改不覆盖，基准研究同样经受理归档生成；脚本可独立重复。受理归档/幂等重试/原子写的无依赖验证见`backend/scripts/verify_archive.py`（SQLite临时库，46项断言，无需Redis）。请求ID/全局错误两个中间件；AuditLog记录登录、录入、研究、建议复核；CSV对公式前缀转义。
 
 共享枚举位置：backend/src/constants/enums.py的Role/RunStatus/NoteStatus/TransectStatus；frontend/src/constants/enums.ts对应角色/运行/建议/资格标签；使用于鉴权、服务/schema与Badge/Layout/页面。75个职责源文件，不计__init__及配置。全部测试脚本、真实截图、CSV、日志和报告仅位于批次根test-artifacts/gb-0014；TESTING.md列真实结果与已知差异。
 
