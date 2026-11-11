@@ -1,0 +1,1 @@
+export const ROLES={admin:'生态研究负责人',analyst:'样线研究员',viewer:'观察记录员'};export const RUN_STATUS={queued:'等待计算',running:'计算中',succeeded:'已归档',failed:'失败'};export const NOTE_STATUS={draft:'待复核',approved:'已确认',rejected:'已退回'};export const TRANSECT_STATUS={eligible:'共同量比较',empty:'空样线单列'};

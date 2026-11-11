@@ -1,0 +1,5 @@
+-- SQLAlchemy metadata initializes surveys, transects, species_counts,
+-- diversity_runs, conservation_notes and user/audit cross-cutting tables.
+-- Natural keys: survey.name, (survey_id,reference), (transect_id,species).
+-- CHECK count>=0 plus unique species per transect. Plan schema migrations
+-- explicitly before changing deployed models.

@@ -1,0 +1,1 @@
+export const dec=(n:number|null|undefined,d=3)=>n==null?'—':n.toFixed(d);export const interval=(a:number[]|null|undefined)=>a?a.map(x=>x.toFixed(2)).join(' – '):'—';export const date=(s:string)=>new Date(s).toLocaleString('zh-CN',{hour12:false});

@@ -1,0 +1,1 @@
+import type {ReactNode} from 'react';export function PageTitle({index,title,description,action}:{index:string;title:string;description:string;action?:ReactNode}){return <header className="page-title"><div><small>SONGJI FIELD ARCHIVE / {index}</small><h1>{title}</h1><p>{description}</p></div>{action}</header>}
